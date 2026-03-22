@@ -1,41 +1,50 @@
-# app.py
-import streamlit as st
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
-from data import data  # your 10-row dataset
+import gradio as gr
+from data import data
 
-# --- Load and prepare data ---
+# Prepare the data
 df = pd.DataFrame(data)
 df_numeric = pd.get_dummies(df, columns=['weather', 'day_type', 'special_event'])
 
 X = df_numeric.drop('total_sold', axis=1)
 y = df_numeric['total_sold']
 
-# --- Train model ---
-Model = RandomForestRegressor(n_estimators=100, random_state=42)
-Model.fit(X, y)
+# Train the model
+model = RandomForestRegressor(n_estimators=100, random_state=42)
+model.fit(X, y)
 
-# --- Streamlit UI ---
-st.title("Inventory AI Predictor")
+# Function to predict
+def predict_sales(day, weather_Cold, weather_Hot, weather_Sunny,
+                  day_type_Weekday, day_type_Weekend,
+                  special_event_Holiday, special_event_None, special_event_Promotion):
+    new_day = pd.DataFrame([{
+        'day': day,
+        'weather_Cold': weather_Cold,
+        'weather_Hot': weather_Hot,
+        'weather_Sunny': weather_Sunny,
+        'day_type_Weekday': day_type_Weekday,
+        'day_type_Weekend': day_type_Weekend,
+        'special_event_Holiday': special_event_Holiday,
+        'special_event_None': special_event_None,
+        'special_event_Promotion': special_event_Promotion
+    }])
+    prediction = model.predict(new_day)
+    return int(round(prediction[0]))
 
-day = st.number_input("Day", min_value=1, max_value=365, value=11)
-weather = st.selectbox("Weather", ["Cold", "Hot", "Sunny"])
-day_type = st.selectbox("Day Type", ["Weekday", "Weekend"])
-event = st.selectbox("Special Event", ["None", "Promotion", "Holiday"])
+# Build Gradio UI
+inputs = [
+    gr.Number(label="Day"),
+    gr.Checkbox(label="Weather Cold"),
+    gr.Checkbox(label="Weather Hot"),
+    gr.Checkbox(label="Weather Sunny"),
+    gr.Checkbox(label="Day type Weekday"),
+    gr.Checkbox(label="Day type Weekend"),
+    gr.Checkbox(label="Special Event Holiday"),
+    gr.Checkbox(label="Special Event None"),
+    gr.Checkbox(label="Special Event Promotion")
+]
 
-# --- Prepare input in one-hot format ---
-input_df = pd.DataFrame([{
-    'day': day,
-    'weather_Cold': weather == "Cold",
-    'weather_Hot': weather == "Hot",
-    'weather_Sunny': weather == "Sunny",
-    'day_type_Weekday': day_type == "Weekday",
-    'day_type_Weekend': day_type == "Weekend",
-    'special_event_Holiday': event == "Holiday",
-    'special_event_None': event == "None",
-    'special_event_Promotion': event == "Promotion"
-}])
+output = gr.Number(label="Predicted Sales")
 
-# --- Predict ---
-prediction = int(round(Model.predict(input_df)[0]))
-st.write(f"Predicted Total Sold: {prediction}")
+gr.Interface(fn=predict_sales, inputs=inputs, outputs=output, title="Inventory AI").launch()
